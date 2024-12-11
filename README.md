@@ -1,7 +1,9 @@
-# DDCLIENT
+# DDCLIENT for support Porkbun API.
 
 `ddclient` is a Perl client used to update dynamic DNS entries for accounts
 on many dynamic DNS services. It uses `curl` for internet access.
+
+And this repository is a forked one to supoort new Porkbun API, because current [ddclient](https://github.com/ddclient/ddclient) is no longer being updated for a while even new Porkbun API gone for deadline for a month.
 
 ## Alternatives
 
@@ -46,7 +48,7 @@ Dynamic DNS services currently supported include:
   * [Noip](https://www.noip.com)
   * nsupdate - see nsupdate(1) and ddns-confgen(8)
   * [OVH](https://www.ovhcloud.com)
-  * [Porkbun](https://porkbun.com)
+  * [New API version of Porkbun](https://porkbun.com)
   * [regfish.de](https://www.regfish.de/domains/dyndns)
   * [Sitelutions](https://www.sitelutions.com)
   * [Yandex](https://dns.yandex.com)

@@ -3,6 +3,12 @@
 This document describes notable changes. For details, see the [source code
 repository history](https://github.com/ddclient/ddclient/commits/master).
 
+## v4.0.0-porkbun (forked version for supporting new Porkbun API)
+
+### changes
+
+  * Updated some porkbun API features for new API URL.
+
 ## v4.0.0~alpha (unreleased work-in-progress)
 
 ### Breaking changes

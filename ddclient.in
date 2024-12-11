@@ -63,7 +63,7 @@ use Sys::Hostname;
 #
 # For consistency and to match user expectations, the release part of the version is always three
 # components: MAJOR.MINOR.PATCH.
-use version 0.77; our $VERSION = version->declare('v4.0.0.0_0');
+use version 0.77; our $VERSION = version->declare('v4.0.0.0_90');
 
 sub parse_version {
     my ($v) = @_;
@@ -91,6 +91,8 @@ sub humanize_version {
         $v .= "r$rr" if defined($rr);
     } elsif ($pr eq '0') {
         $v .= '~alpha';
+	} elsif ($pr < 91) {
+		$v .= "~porkbun";
     } elsif ($pr < 900) {
         $v .= "~beta$pr";
     } elsif ($pr < 999) {
@@ -1205,6 +1207,10 @@ our %protocols = (
             'secretapikey'   => setv(T_PASSWD, 1, undef,      undef),
             'root-domain'    => setv(T_FQDN,   0, undef,      undef),
             'on-root-domain' => setv(T_BOOL,   0, 0,          undef),
+            'server'         => setv(T_FQDNP,  1, 0, 'api.porkbun.com', undef),
+            'login'          => setv(T_LOGIN,  0, 0, 'unused',   undef),
+            'password'       => setv(T_PASSWD, 0, 0, 'unused',   undef),
+            'use'            => setv(T_USE,    0, 0, 'disabled', undef),
         },
     ),
     'sitelutions' => ddclient::LegacyProtocol->new(
@@ -6727,12 +6733,13 @@ sub nic_porkbun_examples {
     return <<"EoEXAMPLE";
 o 'porkbun'
 
-The 'porkbun' protocol is used for porkbun (https://porkbun.com/).
-The API is documented here: https://porkbun.com/api/json/v3/documentation
+The 'porkbun' protocol is used for porkbun (https://api.porkbun.com/).
+The API is documented here: https://api.porkbun.com/api/json/v3/documentation
 
 Before setting up, it is necessary to create your API Key by referring to the following page.
 
-https://kb.porkbun.com/article/190-getting-started-with-the-porkbun-api
+ ! discreted, expired !
+ https://kb.porkbun.com/article/190-getting-started-with-the-porkbun-api
 
 Available configuration variables:
   * apikey (required): API Key of Porkbun API
@@ -6823,7 +6830,7 @@ sub nic_porkbun_update {
             info("setting IPv$ipv address to $ip");
             my $reply = geturl(
                 proxy => opt('proxy'),
-                url => "https://porkbun.com/api/json/v3/dns/retrieveByNameType/$domain/$rrset_type/$sub_domain",
+                url => "https://$hostname/api/json/v3/dns/retrieveByNameType/$domain/$rrset_type/$sub_domain",
                 headers => ['Content-Type: application/json'],
                 method => 'POST',
                 data => encode_json({
@@ -6861,7 +6868,7 @@ sub nic_porkbun_update {
             debug("notes = %s", $notes);
             $reply = geturl(
                 proxy => opt('proxy'),
-                url => "https://porkbun.com/api/json/v3/dns/editByNameType/$domain/$rrset_type/$sub_domain",
+                url => "https://$hostname/api/json/v3/dns/editByNameType/$domain/$rrset_type/$sub_domain",
                 headers => ['Content-Type: application/json'],
                 method => 'POST',
                 data => encode_json({
