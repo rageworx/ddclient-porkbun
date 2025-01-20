@@ -36,25 +36,40 @@ use Sys::Hostname;
 # Note that version::normal and version::numify lose information because the underscore is
 # effectively removed.
 #
-# To work around Perl's limitations, human-readable versions are translated to/from Perl versions
-# as follows:
+# To work around Perl's limitations, Perl versions are translated to/from human-readable Semantic
+# Versioning 2.0.0 <https://semver.org/spec/v2.0.0.html> version strings as follows:
 #
 #     Human-readable    Perl version    Notes
 #     -------------------------------------------------------------------------------------------
-#     1.2.3~alpha       v1.2.3.0_0      compares equal to Perl version v1.2.3 (unfortunately)
-#     1.2.3~betaN       v1.2.3.0_N      1 <= N < 900; compares equal to Perl v1.2.3.N
-#     1.2.3~rcN         v1.2.3.0_M      1 <= N < 99; M = N + 900; compares equal to Perl v1.2.3.M
+#     1.2.3-alpha       v1.2.3.0_0      compares equal to Perl version v1.2.3 (unfortunately)
+#     1.2.3-beta.N      v1.2.3.0_N      1 <= N < 900; compares equal to Perl v1.2.3.N
+#     1.2.3-rc.N        v1.2.3.0_M      1 <= N < 99; M = N + 900; compares equal to Perl v1.2.3.M
 #     1.2.3             v1.2.3.999      for releases; no underscore in Perl version string
-#     1.2.3rN           v1.2.3.999.N    1 <= N < 1000; for re-releases, if necessary (rare)
+#     1.2.3+r.N         v1.2.3.999.N    1 <= N < 1000; for re-releases, if necessary (rare)
 #
-# A tilde is used to separate "alpha", "beta", and "rc" from the version numbers because it has
-# special meaning for the version comparison algorithms in RPM and Debian:
-# https://docs.fedoraproject.org/en-US/packaging-guidelines/Versioning/#_handling_non_sorting_versions_with_tilde_dot_and_caret
-# https://manpages.debian.org/bookworm/dpkg-dev/deb-version.7.en.html
+# A hyphen-minus ('-', a.k.a. dash) is used to separate "alpha", "beta", and "rc" from the version
+# numbers because that is what <https://semver.org/spec/v2.0.0.html> requires.  Tilde ('~') was
+# considered instead of '-' because it has desirable semantics in the version comparison algorithms
+# in Debian and RPM; see <https://manpages.debian.org/bookworm/dpkg-dev/deb-version.7.en.html> and
+# <https://docs.fedoraproject.org/en-US/packaging-guidelines/Versioning/#_handling_non_sorting_versions_with_tilde_dot_and_caret>
+# However, tilde is not permitted in Git tags, so the human-readable version string would have to
+# be transformed for release tags, and then transformed back by downstream package maintainers to
+# reconstruct the original version string.  As long as downstream package maintainers have to
+# transform the tag name anyway, the human-readable version string might as well have the same
+# format as the tag name.  Version strings conforming to <https://semver.org/spec/v2.0.0.html> have
+# this property.
 #
-# No period separator is required between "beta", "rc", or "r" and its adjacent number(s); both RPM
-# and Debian will compare the adjacent number numerically, not lexicographically ("~beta2" sorts
-# before "~beta10" as expected).
+# A period is required between "beta" or "rc" and its adjacent number(s) because
+# <https://semver.org/spec/v2.0.0.html> says that parts containing non-number characters are
+# compared lexicographically.  For example, '-beta9' unfortunately sorts after '-beta10' but
+# '-beta.9' sorts before '-beta.10', as desired.  (Both the Debian and the RPM version comparison
+# algorithms do not have this problem; they compare number parts numerically, not
+# lexicographically, even if there is no period between the number and non-number characters.)
+#
+# A period is also required after the "r" for a re-release, but this is only for consistency with
+# "beta" and "rc".  <https://semver.org/spec/v2.0.0.html> says that build metadata (the stuff after
+# the plus ('+') character) does not affect ordering at all so the lack of a period would not
+# affect ordering.
 #
 # The Perl version is declared first then converted to a human-readable form.  It would be nicer to
 # declare a human-readable version string and convert that to a Perl version string, but various
@@ -63,7 +78,7 @@ use Sys::Hostname;
 #
 # For consistency and to match user expectations, the release part of the version is always three
 # components: MAJOR.MINOR.PATCH.
-use version 0.77; our $VERSION = version->declare('v4.0.0.0_90');
+use version 0.77; our $VERSION = version->declare('v4.0.1.0_0');
 
 sub parse_version {
     my ($v) = @_;
@@ -88,15 +103,13 @@ sub humanize_version {
     return $v if !defined($r);
     $v = $r;
     if (!defined($pr)) {
-        $v .= "r$rr" if defined($rr);
+        $v .= "+r.$rr" if defined($rr);
     } elsif ($pr eq '0') {
-        $v .= '~alpha';
-	} elsif ($pr < 91) {
-		$v .= "~porkbun";
+        $v .= '-alpha';
     } elsif ($pr < 900) {
-        $v .= "~beta$pr";
+        $v .= "-beta.$pr";
     } elsif ($pr < 999) {
-        $v .= '~rc' . ($pr - 900);
+        $v .= '-rc.' . ($pr - 900);
     }
     return $v;
 }
@@ -119,7 +132,7 @@ sub subst_var {
     return $subst;
 }
 
-my $etc = subst_var('@sysconfdir@', '/etc/ddclient');
+my $etc = subst_var('@confdir@', '/etc/ddclient');
 my $cachedir = subst_var('@localstatedir@', '/var') . '/cache/ddclient';
 our @curl = (subst_var('@CURL@', 'curl'));
 
@@ -691,6 +704,7 @@ our %cfgvars = (
         'priority'            => setv(T_STRING,0, 'notice',             undef),
         'mail'                => setv(T_EMAIL, 0, undef,                undef),
         'mail-failure'        => setv(T_EMAIL, 0, undef,                undef),
+        'mail-from'           => setv(T_EMAIL, 0, undef,                undef),
         'max-warn'            => setv(T_NUMBER,0, 1,                    undef),
 
         'exec'                => setv(T_BOOL,  0, 1,                    undef),
@@ -1203,14 +1217,11 @@ our %protocols = (
             %{$cfgvars{'protocol-common-defaults'}},
             'login' => undef,
             'password' => undef,
-            'apikey'         => setv(T_PASSWD, 1, undef,      undef),
-            'secretapikey'   => setv(T_PASSWD, 1, undef,      undef),
-            'root-domain'    => setv(T_FQDN,   0, undef,      undef),
-            'on-root-domain' => setv(T_BOOL,   0, 0,          undef),
-            'server'         => setv(T_FQDNP,  1, 0, 'api.porkbun.com', undef),
-            'login'          => setv(T_LOGIN,  0, 0, 'unused',   undef),
-            'password'       => setv(T_PASSWD, 0, 0, 'unused',   undef),
-            'use'            => setv(T_USE,    0, 0, 'disabled', undef),
+            'apikey'         => setv(T_PASSWD, 1, undef,             undef),
+            'secretapikey'   => setv(T_PASSWD, 1, undef,             undef),
+            'root-domain'    => setv(T_FQDN,   0, undef,             undef),
+            'on-root-domain' => setv(T_BOOL,   0, 0,                 undef),
+            'server'         => setv(T_FQDNP,  0, 'api.porkbun.com', undef),
         },
     ),
     'sitelutions' => ddclient::LegacyProtocol->new(
@@ -1417,6 +1428,7 @@ my @opt = (
     ["max-warn",          "=i", "--max-warn=<max>       : log at most <max> warning messages for undefined IP address"],
     ["mail",              "=s", "--mail=<address>       : e-mail messages to <address>"],
     ["mail-failure",      "=s", "--mail-failure=<addr>  : e-mail messages for failed updates to <addr>"],
+    ["mail-from",         "=s", '--mail-from=<addr>     : set the "From:" header in e-mail messages to <addr> if non-empty'],
     ["exec",              "!",  "--{no}exec             : do {not} execute; just show what would be done"],
     ["debug",             "!",  "--{no}debug            : print {no} debugging information"],
     ["verbose",           "!",  "--{no}verbose          : print {no} verbose information"],
@@ -2394,8 +2406,10 @@ sub sendmail {
         $recipients = opt('mail-failure');
     }
     if ($emailbody && $recipients && $emailbody ne $last_emailbody) {
+        my $sender = opt('mail-from') // '';
         pipecmd("sendmail -oi $recipients",
                 "To: $recipients",
+                $sender ne '' ? ("From: $sender") : (),
                 "Subject: status report from $program\@$hostname",
                 "\r\n",
                 $emailbody,
@@ -2496,9 +2510,11 @@ sub ynu {
     # provided (it is ignored if the `msg` keyword is present).
     sub log {
         my $self = shift;
-        my %args = (@_ % 2 ? (msg => pop) : (), @_);
+        my %args = (label => '', @_ % 2 ? (msg => pop) : (), @_);
         $args{ctx} = [$args{ctx} // ()] if ref($args{ctx}) eq '';
-        return $self->_log(\%args);
+        $self->_log(\%args);
+        $self->_failed() if $args{label} eq 'FAILED';
+        $self->_abort() if $args{label} eq 'FATAL';
     }
 
     sub _log {
@@ -2507,10 +2523,11 @@ sub ynu {
         # the caller's arrayref (in case it is reused in a future call).
         $args->{ctx} = [@{$self->{ctx}}, @{$args->{ctx}}];
         return $self->{parent}->_log($args) if defined($self->{parent});
+        return if $args->{label} eq 'DEBUG' && !ddclient::opt('debug');
+        return if $args->{label} eq 'INFO' && !ddclient::opt('verbose');
         my $buffer = $args->{msg} // '';
         chomp($buffer);
         if (!$args->{raw}) {
-            $args->{label} //= '';
             my $prefix = $args->{label} ne '' ? sprintf("%-8s ", $args->{label} . ':') : '';
             $prefix .= "[$_]" for @{$args->{ctx}};
             $prefix .= '> ' if $prefix;
@@ -2530,6 +2547,20 @@ sub ynu {
             }
         }
     }
+
+    sub _failed {
+        my ($self) = @_;
+        return $self->{parent}->_failed() if defined($self->{parent});
+        $ddclient::result = 'FAILED';
+        $ddclient::result if 0;  # Suppress spurious "used only once: possible typo" warning.
+    }
+
+    sub _abort {
+        my ($self) = @_;
+        return $self->{parent}->_abort() if defined($self->{parent});
+        ddclient::sendmail();
+        exit(1);
+    }
 }
 
 # Intended use:
@@ -2538,12 +2569,12 @@ sub pushlogctx { my ($ctx) = @_; return ddclient::Logger->new($ctx, $_l); }
 
 sub logmsg { $_l->log(@_); }
 sub _logmsg_fmt { $_[0] eq 'ctx' ? (shift, shift) : (), (@_ > 1) ? sprintf(shift, @_) : shift; }
-sub info    { logmsg(email => 1, label => 'INFO',    _logmsg_fmt(@_)) if opt('verbose'); }
-sub debug   { logmsg(            label => 'DEBUG',   _logmsg_fmt(@_)) if opt('debug'); }
+sub info    { logmsg(email => 1, label => 'INFO',    _logmsg_fmt(@_)); }
+sub debug   { logmsg(            label => 'DEBUG',   _logmsg_fmt(@_)); }
 sub warning { logmsg(email => 1, label => 'WARNING', _logmsg_fmt(@_)); }
-sub fatal   { logmsg(email => 1, label => 'FATAL',   _logmsg_fmt(@_)); sendmail(); exit(1); }
+sub fatal   { logmsg(email => 1, label => 'FATAL',   _logmsg_fmt(@_)); }
 sub success { logmsg(email => 1, label => 'SUCCESS', _logmsg_fmt(@_)); }
-sub failed  { logmsg(email => 1, label => 'FAILED',  _logmsg_fmt(@_)); $result = 'FAILED'; }
+sub failed  { logmsg(email => 1, label => 'FAILED',  _logmsg_fmt(@_)); }
 
 sub prettytime { return scalar(localtime(shift)); }
 
@@ -3327,10 +3358,9 @@ sub get_ipv4 {
     } elsif ($p{'usev4'} eq 'cmdv4') {
         ## Obtain IPv4 address by executing the command in "cmdv4=<command>"
         warning("'--cmd-skip' ignored for '--usev4=$p{'usev4'}'")
-            if (opt('verbose') && $p{'cmd-skip'});
+            if opt('verbose') && defined($p{'cmd-skip'});
         if ($arg) {
-            my $sys_cmd = quotemeta($arg);
-            $reply = qx{$sys_cmd};
+            $reply = qx{$arg};
             $reply = '' if $?;
         }
     } elsif ($p{'usev4'} eq 'webv4') {
@@ -3440,10 +3470,10 @@ sub get_ipv6 {
         $ipv6 = get_ip_from_interface($arg, 6);
     }  elsif ($p{'usev6'} eq 'cmdv6' || $p{'usev6'} eq 'cmd') {
         ## Obtain IPv6 address by executing the command in "cmdv6=<command>"
-        warning("'--cmd-skip' ignored") if opt('verbose') && p{'cmd-skip'};
+        warning("'--cmd-skip' ignored for '--usev6=$p{'usev6'}'")
+            if opt('verbose') && defined($p{'cmd-skip'});
         if ($arg) {
-            my $sys_cmd = quotemeta($arg);
-            $reply = qx{$sys_cmd};
+            $reply = qx{$arg};
             $reply = '' if $?;
         }
     } elsif ($p{'usev6'} eq 'webv6' || $p{'usev6'} eq 'web') {
@@ -3909,7 +3939,7 @@ sub nic_dyndns2_update {
         'abuse' => 'The hostname specified is blocked for abuse; you should receive an email notification which provides an unblock request link.  More info can be found on https://www.dyndns.com/support/abuse.html',
         'numhost' => 'System error: Too many or too few hosts found. Contact support@dyndns.org',
         'dnserr' => 'System error: DNS error encountered. Contact support@dyndns.org',
-        'nochg' => 'No update required; unnecessary attempts to change to the current address are considered abusive',
+        'nochg' => 'No update required; unnecessary attempts to change the current address are considered abusive',
     );
     my @group_by_attrs = qw(
         backupmx
@@ -4067,54 +4097,55 @@ EoEXAMPLE
 ######################################################################
 sub nic_dnsexit2_update {
     my $self = shift;
-    # The DNSExit API does not support updating hosts with different zones at the same time,
-    # handling update per host.
     for my $h (@_) {
         $config{$h}{'zone'} = $h if !defined(opt('zone', $h));
-        dnsexit2_update_host($h);
     }
+    dnsexit2_update_hostgroup($_) for group_hosts_by(\@_, qw(password path server ssl zone));
 }
 
-sub dnsexit2_update_host {
-    my ($h) = @_;
-    local $_l = pushlogctx($h);
-    my $name = $h;
-    # Remove the zone suffix from $name.  If the zone eq $name, $name can be left alone or
-    # set to the empty string; both have identical semantics.  For consistency, always
-    # remove the zone even if it means $name becomes the empty string.
-    my $zone = opt('zone', $h);
-    if ($name =~ s/(?:^|\.)\Q$zone\E$//) {
-        # The zone was successfully trimmed from $name.
-    } else {
-        fatal("hostname does not end with the zone: " . opt('zone', $h));
-    }
-    # The IPv4 and IPv6 addresses must be updated together in a single API call.
-    my %ips;
+sub dnsexit2_update_hostgroup {
+    my ($group) = @_;
+    return unless @{$group->{hosts}} > 0;
+    local $_l = pushlogctx(join(', ', @{$group->{hosts}}));
+    my %hostips;
     my @updates;
-    for my $ipv ('4', '6') {
-        my $ip = delete($config{$h}{"wantipv$ipv"}) or next;
-        $ips{$ipv} = $ip;
-        info("updating IPv$ipv address to $ip");
-        $recap{$h}{"status-ipv$ipv"} = 'failed';
-        push(@updates, {
-            name => $name,
-            type => ($ipv eq '6') ? 'AAAA' : 'A',
-            content => $ip,
-            ttl => opt('ttl', $h),
-        });
-    };
-    my $url = opt('server', $h) . opt('path', $h);
+    for my $h (@{$group->{hosts}}) {
+        local $_l = pushlogctx($h) if @{$group->{hosts}} > 1;
+        my $name = $h;
+        # Remove the zone suffix from $name.  If the zone eq $name, $name can be left alone or
+        # set to the empty string; both have identical semantics.  For consistency, always
+        # remove the zone even if it means $name becomes the empty string.
+        if ($name =~ s/(?:^|\.)\Q$group->{cfg}{'zone'}\E$//) {
+            # The zone was successfully trimmed from $name.
+        } else {
+            fatal("hostname does not end with the zone: $group->{cfg}{'zone'}");
+        }
+        # The IPv4 and IPv6 addresses must be updated together in a single API call.
+        for my $ipv ('4', '6') {
+            my $ip = delete($config{$h}{"wantipv$ipv"}) or next;
+            $hostips{$h}{$ipv} = $ip;
+            info("updating IPv$ipv address to $ip");
+            $recap{$h}{"status-ipv$ipv"} = 'failed';
+            push(@updates, {
+                name => $name,
+                type => ($ipv eq '6') ? 'AAAA' : 'A',
+                content => $ip,
+                ttl => opt('ttl', $h),
+            });
+        }
+    }
+    return unless @updates > 0;
     my $reply = geturl(
         proxy => opt('proxy'),
-        url => $url,
+        url => $group->{cfg}{'server'} . $group->{cfg}{'path'},
         headers => [
             'Content-Type: application/json',
             'Accept: application/json',
         ],
         method => 'POST',
         data => encode_json({
-            apikey => opt('password', $h),
-            domain => $zone,
+            apikey => $group->{cfg}{'password'},
+            domain => $group->{cfg}{'zone'},
             update => \@updates,
         }),
     );
@@ -4161,12 +4192,15 @@ sub dnsexit2_update_host {
         return;
     }
     success($message);
-    $recap{$h}{'mtime'} = $now;
-    keys(%ips);  # Reset internal iterator.
-    while (my ($ipv, $ip) = each(%ips)) {
-        $recap{$h}{"ipv$ipv"} = $ip;
-        $recap{$h}{"status-ipv$ipv"} = 'good';
-        success("updated IPv$ipv address to $ip");
+    keys(%hostips);  # Reset internal iterator.
+    while (my ($h, $ips) = each(%hostips)) {
+        $recap{$h}{'mtime'} = $now;
+        keys(%$ips);  # Reset internal iterator.
+        while (my ($ipv, $ip) = each(%$ips)) {
+            $recap{$h}{"ipv$ipv"} = $ip;
+            $recap{$h}{"status-ipv$ipv"} = 'good';
+            success("updated IPv$ipv address to $ip");
+        }
     }
 }
 
@@ -4184,7 +4218,7 @@ sub nic_noip_update {
         'abuse', => 'The hostname specified is blocked for abuse; open a trouble ticket at https://www.no-ip.com',
         'numhost' => 'System error: Too many or too few hosts found. open a trouble ticket at https://www.no-ip.com',
         'dnserr' => 'System error: DNS error encountered. Contact support@dyndns.org',
-        'nochg' => 'No update required; unnecessary attempts to change to the current address are considered abusive',
+        'nochg' => 'No update required; unnecessary attempts to change the current address are considered abusive',
     );
     for my $group (group_hosts_by(\@_, qw(login password server wantipv4 wantipv6))) {
         my @hosts = @{$group->{hosts}};
@@ -5575,7 +5609,7 @@ sub nic_henet_update {
        'badsys' => 'The system parameter given was not valid',
        'nohost' => 'The hostname specified does not exist in the database',
        'abuse' => 'The hostname specified is blocked for abuse',
-       'nochg' => 'No update required; unnecessary attempts to change to the current address are considered abusive',
+       'nochg' => 'No update required; unnecessary attempts to change the current address are considered abusive',
     );
 
     for my $h (@_) {
@@ -6154,7 +6188,7 @@ sub nic_inwx_update {
        'abuse' => 'The hostname specified is blocked for abuse; you should receive an email notification which provides an unblock request link.',
        'numhost' => 'System error: Too many or too few hosts found.',
        'dnserr' => 'System error: DNS error encountered.',
-       'nochg' => 'No update required; unnecessary attempts to change to the current address are considered abusive',
+       'nochg' => 'No update required; unnecessary attempts to change the current address are considered abusive',
     );
     my @group_by_attrs = qw(
         login
@@ -6749,6 +6783,7 @@ Available configuration variables:
     an unnamed record (Zone APEX) in a zone.
     It is useful to specify it as a local variable as shown in the example.
     This configuration value is deprecated, use root-domain instead!
+  * server: API endpoint to use, defaults to api.porkbun.com
   * usev4, usev6 : These configuration variables can be specified as local variables to override
     the global settings. It is useful to finely control IPv4 or IPv6 as shown in the example.
   * use (deprecated) : This parameter is deprecated but can be overridden like the above parameters.
@@ -6806,6 +6841,7 @@ EoEXAMPLE
 sub nic_porkbun_update {
     my $self = shift;
     for my $h (@_) {
+        my $server = opt('server', $h);
         local $_l = pushlogctx($h);
         my ($sub_domain, $domain);
         if (opt('root-domain', $h)) {
@@ -6830,7 +6866,7 @@ sub nic_porkbun_update {
             info("setting IPv$ipv address to $ip");
             my $reply = geturl(
                 proxy => opt('proxy'),
-                url => "https://$hostname/api/json/v3/dns/retrieveByNameType/$domain/$rrset_type/$sub_domain",
+                url => "https://$server/api/json/v3/dns/retrieveByNameType/$domain/$rrset_type/$sub_domain",
                 headers => ['Content-Type: application/json'],
                 method => 'POST',
                 data => encode_json({
@@ -6868,7 +6904,7 @@ sub nic_porkbun_update {
             debug("notes = %s", $notes);
             $reply = geturl(
                 proxy => opt('proxy'),
-                url => "https://$hostname/api/json/v3/dns/editByNameType/$domain/$rrset_type/$sub_domain",
+                url => "https://$server/api/json/v3/dns/editByNameType/$domain/$rrset_type/$sub_domain",
                 headers => ['Content-Type: application/json'],
                 method => 'POST',
                 data => encode_json({

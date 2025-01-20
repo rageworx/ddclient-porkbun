@@ -11,7 +11,7 @@ AC_INIT([ddclient], m4_dquote(m4_esyscmd([printf '[%s]' "$(./ddclient.in --versi
 AC_SUBST([CONFIGURE_DEPENDENCIES], ['$(top_srcdir)/ddclient.in'])
 AC_CONFIG_SRCDIR([ddclient.in])
 AC_CONFIG_AUX_DIR([build-aux])
-AC_CONFIG_MACRO_DIR([m4])
+AC_CONFIG_MACRO_DIR([build-aux/m4])
 AC_REQUIRE_AUX_FILE([tap-driver.sh])
 # If the automake dependency is bumped to v1.12 or newer, remove
 # build-aux/tap-driver.sh from the repository.  Automake 1.12+ comes
@@ -22,6 +22,18 @@ AC_REQUIRE_AUX_FILE([tap-driver.sh])
 # about a mising file if the user has Automake 1.11.)
 AM_INIT_AUTOMAKE([1.11 -Wall -Werror foreign subdir-objects parallel-tests])
 AM_SILENT_RULES
+
+m4_define([CONFDIR_DEFAULT], [${sysconfdir}/AC_PACKAGE_NAME])
+AC_ARG_WITH(
+  [confdir],
+  [AS_HELP_STRING(
+    [--with-confdir=DIR],
+    m4_expand([[look for ddclient.conf in DIR @<:@default: ]CONFDIR_DEFAULT[@:>@]]))],
+  [],
+  # The single quotes are intentional; see:
+  # https://www.gnu.org/software/automake/manual/html_node/Uniform.html
+  [with_confdir='CONFDIR_DEFAULT'])
+AC_SUBST([confdir], [${with_confdir}])
 
 AC_PROG_MKDIR_P
 
@@ -75,6 +87,7 @@ m4_foreach_w([_m], [
 # then some tests will fail. Only prints a warning if not installed.
 m4_foreach_w([_m], [
     B
+    Exporter
     File::Spec::Functions
     File::Temp
     List::Util
@@ -88,7 +101,6 @@ m4_foreach_w([_m], [
 # prints a warning if not installed.
 m4_foreach_w([_m], [
     Carp
-    Exporter
     HTTP::Daemon=6.12
     HTTP::Daemon::SSL
     HTTP::Message::PSGI
@@ -100,6 +112,7 @@ m4_foreach_w([_m], [
     Test::Warnings
     Time::HiRes
     URI
+    parent
   ], [AX_PROG_PERL_MODULES([_m], [],
          [AC_MSG_WARN([some tests may be skipped due to missing module _m])])])
 

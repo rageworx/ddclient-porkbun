@@ -1,23 +1,56 @@
 # ChangeLog
 
 This document describes notable changes. For details, see the [source code
-repository history](https://github.com/ddclient/ddclient/commits/master).
+repository history](https://github.com/ddclient/ddclient/commits/main).
 
-## v4.0.0-porkbun (forked version for supporting new Porkbun API)
+## v4.0.1-porkbun (forked version for supporting new Porkbun API)
 
 ### changes
 
   * Updated some porkbun API features for new API URL.
 
-## v4.0.0~alpha (unreleased work-in-progress)
+## v4.0.1-alpha (unreleased work-in-progress)
+
+## 2025-01-19 v4.0.0
 
 ### Breaking changes
+
+  * ddclient now looks for `ddclient.conf` in `${sysconfdir}/ddclient` by
+    default instead of `${sysconfdir}`.
+    [#789](https://github.com/ddclient/ddclient/pull/789)
+
+    To retain the previous behavior, pass `'--with-confdir=${sysconfdir}'` to
+    `configure`.  For example:
+
+    ```shell
+    # Before v4.0.0:
+    ./configure --sysconfdir=/etc
+    # Equivalent with v4.0.0 and later (the single quotes are intentional):
+    ./configure --sysconfdir=/etc --with-confdir='${sysconfdir}'
+    ```
+
+    or:
+
+    ```shell
+    # Before v4.0.0:
+    ./configure --sysconfdir=/etc/ddclient
+    # Equivalent with v4.0.0 and later:
+    ./configure --sysconfdir=/etc
+    ```
 
   * The `--ssl` option is now enabled by default.
     [#705](https://github.com/ddclient/ddclient/pull/705)
   * Unencrypted (plain) HTTP is now used instead of encrypted (TLS) HTTP if the
     URL uses `http://` instead of `https://`, even if the `--ssl` option is
     enabled.  [#608](https://github.com/ddclient/ddclient/pull/608)
+  * The string argument to `--cmdv4` or `--cmdv6` is now executed as-is by the
+    system's shell, matching the behavior of the deprecated `--cmd` option.
+    This makes it possible to pass command-line arguments, which reduces the
+    need for a custom wrapper script.  Beware that the string is also subject to
+    the shell's command substitution, quote handling, variable expansion, field
+    splitting, etc., so you may need to add extra escaping to ensure that any
+    special characters are preserved literally.
+    [#766](https://github.com/ddclient/ddclient/pull/766)
   * The default web service for `--webv4` and `--webv6` has changed from Google
     Domains (which has shut down) to ipify.
     [5b104ad1](https://github.com/ddclient/ddclient/commit/5b104ad116c023c3760129cab6e141f04f72b406)
@@ -59,6 +92,8 @@ repository history](https://github.com/ddclient/ddclient/commits/master).
 
 ### New features
 
+  * New `--mail-from` option to control the "From:" header of email messages.
+    [#565](https://github.com/ddclient/ddclient/pull/565)
   * Simultaneous/separate updating of IPv4 (A) records and IPv6 (AAAA) records
     is now supported in the following services: `gandi`
     ([#558](https://github.com/ddclient/ddclient/pull/558)), `nsupdate`
@@ -103,6 +138,10 @@ repository history](https://github.com/ddclient/ddclient/commits/master).
     [#719](https://github.com/ddclient/ddclient/pull/719)
   * `directnic`: Added support for updatng Directnic records.
     [#726](https://github.com/ddclient/ddclient/pull/726)
+  * `porkbun`: The update URL hostname is now configurable via the `server`
+    option.  [#752](https://github.com/ddclient/ddclient/pull/752)
+  * `dnsexit2`: Multiple hosts are updated in a single API call when possible.
+    [#684](https://github.com/ddclient/ddclient/pull/684)
 
 ### Bug fixes
 
@@ -170,6 +209,8 @@ repository history](https://github.com/ddclient/ddclient/commits/master).
     [#721](https://github.com/ddclient/ddclient/pull/721)
   * `dyndns2`: Fixed handling of responses for multi-host updates.
     [#728](https://github.com/ddclient/ddclient/pull/728)
+  * `porkbun`: The default update URL was updated from `porkbun.com` to
+    `api.porkbun.com`.  [#752](https://github.com/ddclient/ddclient/pull/752)
 
 ## 2023-11-23 v3.11.2
 

@@ -1,0 +1,49 @@
+name: Pull Request
+on:
+  pull_request:
+    types:
+      - labeled
+      - opened
+      - reopened
+      - synchronize
+      - unlabeled
+
+jobs:
+  linear-history:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'pr-permit-nonlinear') }}
+    name: Linear History
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: No new merge commits
+        run: |
+          log() { printf %s\\n "$*" >&2; }
+          error() { log "ERROR: $@"; }
+          fatal() { error "$@"; exit 1; }
+          try() { log "Running command $@"; "$@" || fatal "'$@' failed"; }
+          out=$(try git rev-list -n 1 --merges '${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}') || exit 1
+          [ -z "${out}" ] || {
+              error "pull request includes a merge commit and does not have the 'pr-permit-nonlinear' label"
+              git show "${out}" >&2
+              exit 1
+          }
+  no-autosquash:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'pr-permit-autosquash') }}
+    name: No --autosquash commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 'No commits with messages starting with "fixup!", "squash!", or "amend!"'
+        run: |
+          log() { printf %s\\n "$*" >&2; }
+          error() { log "ERROR: $@"; }
+          fatal() { error "$@"; exit 1; }
+          try() { log "Running command $@"; "$@" || fatal "'$@' failed"; }
+          out=$(try git log --oneline '${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}') || exit 1
+          ! grep -E '^[^ ]* (fixup|squash|amend)!' <<EOF || fatal "--autosquash commits not allowed without the 'pr-permit-autosquash' label"
+          ${out}
+          EOF
